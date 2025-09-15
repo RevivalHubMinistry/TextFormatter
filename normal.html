@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fancy → Normal Text Converter</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, Arial, sans-serif;
+      padding: 20px;
+      background: #121212;
+      color: #f0f0f0;
+    }
+    h1 { font-size: 22px; margin-bottom:8px; }
+    textarea, pre {
+      width: 100%;
+      min-height: 140px;
+      font-size: 16px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #1e1e1e;
+      color: #f0f0f0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      box-sizing: border-box;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      background: #2a2a2a;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover { background: #3a3a3a; }
+    .hint { opacity:0.8; font-size:13px; margin-top:6px; }
+
+    /* New: container for title + link */
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .title-row a {
+      font-size: 14px;
+      color: #4da6ff;
+      text-decoration: none;
+    }
+    .title-row a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="title-row">
+    <h1>Fancy → Normal Text Converter</h1>
+    <a href="https://revivalhubministry.github.io/TextFormatter/">Go Back</a>
+  </div>
+
+  <label><strong>Input Fancy Text</strong></label>
+  <textarea id="input" placeholder="Paste fancy text here..."></textarea>
+
+  <div class="row">
+    <button id="copy">Copy Normal Text</button>
+    <button id="clear">Clear</button>
+  </div>
+
+  <label><strong>Output (Normalized)</strong></label>
+  <pre id="output"></pre>
+  <div class="hint">This normalizer strips underline-combining marks, applies Unicode compatibility normalization and maps many styled alphabets back to ASCII.</div>
+
+  <script>
+    const asciiLower = "abcdefghijklmnopqrstuvwxyz";
+    const asciiUpper = asciiLower.toUpperCase();
+
+    // Many styled alphabets (lowercase string, uppercase string)
+    // These lines include the exact alphabets you provided and other common variants.
+    const styleSets = [
+      // basic math bold
+      ["𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳", "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"],
+      // math italic
+      ["𝑎𝑏𝑐𝑑𝑒𝑓𝑔𝒉𝒊𝒋𝓀𝓁𝓂𝓃𝑜𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏", "𝑨𝑩𝑪𝑫𝑬𝑭𝑮𝑯𝑰𝑱𝑲𝑳𝑴𝑵𝑶𝑷𝑸𝑹𝑺𝑻𝑼𝑽𝑾𝑿𝒀𝒁"],
+      // math bold italic
+      ["𝒂𝒃𝒄𝒅𝒆𝒇𝒈𝒉𝒊𝒋𝒌𝒍𝒎𝒏𝒐𝒑𝒒𝒓𝒔𝒕𝒖𝒗𝒘𝒙𝒚𝒛", "𝑨𝑩𝑪𝑫𝑬𝑭𝑮𝑯𝑰𝑱𝑲𝑳𝑴𝑵𝑶𝑷𝑸𝑹𝑺𝑻𝑼𝑽𝑾𝑿𝒀𝒁"],
+      // script (common)
+      ["𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏", "𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵"],
+      // fraktur
+      ["𝔞𝔟𝔠𝔡𝔢𝔣𝔤𝔥𝔦𝔧𝔨𝔩𝔪𝔫𝔬𝔭𝔮𝔯𝔰𝔱𝔲𝔳𝔴𝔵𝔶𝔷", "𝔄𝔅ℭ𝔇𝔈𝔉𝔊ℌℑ𝔍𝔎𝔏𝔐𝔑𝔒𝔓𝔔ℜ𝔖𝔗𝔘𝔙𝔚𝔛𝔜ℨ"],
+      // double-struck / blackboard bold
+      ["𝕒𝕓𝕔𝕕𝕖𝕗𝕘𝕙𝕚𝕛𝕜𝕝𝕞𝕟𝕠𝕡𝕢𝕣𝕤𝕥𝕦𝕧𝕨𝕩𝕪𝕫", "𝔸𝔹ℂ𝔻𝔼𝔽𝔾ℍ𝕀𝕁𝕂𝕃𝕄ℕ𝕆ℙℚℝ𝕊𝕋𝕌𝕍𝕎𝕏𝕐ℤ"],
+      // gothic/fraktur-style (alternate)
+      ["𝖺𝖻𝖼𝖽𝖾𝖿𝖌𝖍𝖎𝖏𝖐𝖑𝖒𝖓𝖔𝖕𝖖𝖗𝖘𝖙𝖚𝖛𝖜𝖝𝖞𝖟", "𝕬𝕭𝕮𝕯𝕰𝕱𝕲𝕳𝕴𝕵𝕶𝕷𝕸𝕹𝕺𝕻𝕼𝕽𝕾𝕿𝖀𝖁𝖂𝖃𝖄𝖅"],
+      // monospace
+      ["𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙂𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉"],
+      // sans serif families
+      ["𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"],
+      ["𝘢𝘣𝘤𝘥𝘦𝘧𝘨𝘩𝘪𝘫𝘬𝘭𝘮𝘯𝘰𝘱𝘲𝘳𝘴𝘵𝘶𝘷𝘸𝘹𝘺𝘻", "𝘈𝘉𝘊𝘋𝘌𝘍𝘎𝘏𝘐𝘑𝘒𝘓𝘔𝘕𝘖𝘗𝘘𝘙𝘚𝘛𝘜𝘝𝘞𝘟𝘠𝘡"],
+      ["𝙖𝙗𝙘𝙙𝙚𝙛𝙜𝙝𝙞𝙟𝙠𝙡𝙢𝙣𝙤𝙥𝙦𝙧𝙨𝙩𝙪𝙫𝙬𝙭𝙮𝙯", "𝘼𝘽𝘾𝘿𝙀𝙁𝙂𝙃𝙄𝙅𝙆𝙇𝙈𝙉𝙊𝙋𝙌𝙍𝙎𝙏𝙐𝙑𝙒𝙓𝙔𝙕"],
+      // fullwidth
+      ["ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ", "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ"],
+      // circled
+      ["ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"],
+      // squared / enclosed
+      ["🄰🄱🄲🄳🄴🄵🄶🄷🄸🄹🄺🄻🄼🄽🄾🄿🅀🅁🅂🅃🅄🅅🅆🅇🅈🅉", "🄰🄱🄲🄳🄴🄵🄶🄷🄸🄹🄺🄻🄼🄽🄾🄿🅀🅁🅂🅃🅄🅅🅆🅇🅈🅉"]
+    ];
+
+    // Manual map for small-caps, phonetic letters, Cyrillic/Greek lookalikes and special single-chars
+    const manualMap = {
+      "ᴀ":"a","ʙ":"b","ᴄ":"c","ᴅ":"d","ᴇ":"e","ꜰ":"f","ғ":"f","ɢ":"g","ʜ":"h",
+      "ɪ":"i","ᴊ":"j","ᴋ":"k","ʟ":"l","ᴍ":"m","ɴ":"n","ᴏ":"o","ᴩ":"p","ᴘ":"p",
+      "ʀ":"r","ꜱ":"s","ᴛ":"t","ᴜ":"u","ᴠ":"v","ᴡ":"w","ʏ":"y","ᴢ":"z",
+      "а":"a","е":"e","ѕ":"s","ԁ":"d","ο":"o","р":"p","с":"c","у":"y","х":"x",
+      "ϙ":"q","ι":"i","Ι":"I","Ο":"O","Ρ":"P","Χ":"X",
+      "𝟎":"0","𝟏":"1","𝟐":"2","𝟑":"3","𝟒":"4","𝟓":"5","𝟔":"6","𝟕":"7","𝟖":"8","𝟗":"9"
+    };
+
+    const reverseMap = Object.assign({}, manualMap);
+    styleSets.forEach(([lower, upper]) => {
+      for (let i = 0; i < asciiLower.length; i++) {
+        if (lower && lower[i]) reverseMap[lower[i]] = asciiLower[i];
+        if (upper && upper[i]) reverseMap[upper[i]] = asciiUpper[i];
+      }
+    });
+
+    function preNormalize(s) {
+      let t = s.normalize('NFKC');
+      t = t.normalize('NFD').replace(/\p{M}/gu, '');
+      return t;
+    }
+
+    function normalizeText(text) {
+      const cleaned = preNormalize(text);
+      let out = "";
+      for (const ch of [...cleaned]) {
+        if (reverseMap[ch]) {
+          out += reverseMap[ch];
+          continue;
+        }
+        const lowerCh = ch.toLowerCase();
+        if (reverseMap[lowerCh]) {
+          const mapped = reverseMap[lowerCh];
+          out += (ch === ch.toUpperCase() && /[A-Z]/.test(mapped)) ? mapped.toUpperCase() : mapped;
+          continue;
+        }
+        out += ch;
+      }
+      return out;
+    }
+
+    const input = document.getElementById("input");
+    const output = document.getElementById("output");
+    const copyBtn = document.getElementById("copy");
+    const clearBtn = document.getElementById("clear");
+
+    input.addEventListener("input", () => {
+      output.textContent = normalizeText(input.value);
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(output.textContent);
+        copyBtn.textContent = "Copied!";
+        setTimeout(() => copyBtn.textContent = "Copy Normal Text", 1200);
+      } catch {
+        alert("Copy failed — select & copy manually.");
+      }
+    });
+
+    clearBtn.addEventListener("click", () => {
+      input.value = "";
+      output.textContent = "";
+      input.focus();
+    });
+
+    const sample = "𝖡𝗒 𝗍𝗁𝖾 𝗉𝗈𝗐𝖾𝗋 𝗈𝖿 𝖦𝗈𝖽, 𝖨 𝖺𝗌𝗄 𝗆𝗒 𝖾𝗒𝖾𝗌, 𝗆𝗒 𝗁𝖾𝖺𝗋𝗍 𝖺𝗇𝖽 𝗆𝗒 𝗆𝗂𝗇𝖽 𝗍𝗈 𝗋𝖾𝖼𝖾𝗂𝗏𝖾 𝗂𝗇𝖿𝗈𝗋𝗆𝖺𝗍𝗂𝗈𝗇𝗌 𝖿𝗋𝗈𝗆 𝖦𝗈𝖽.";
+    // input.value = sample; output.textContent = normalizeText(sample);
+  </script>
+</body>
+</html>
